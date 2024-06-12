@@ -69,7 +69,7 @@ def show_plot(outliers):
 
     plt.xlabel('X')
     plt.ylabel('Y')
-    plt.title('Mapping of the primitives using LIDAR')
+    plt.title('Mapping of the primitives using RANSAC')
 
     plt.grid(True)
     plt.show()
@@ -79,6 +79,7 @@ def write_shape_details(file, shape_type, centroid, vertices):
 
 def fit_and_draw_shape(shape_type, fit_function, outliers, file, vertex_count):
     best_shape, inliers, outliers = fit_function(outliers)
+
     if best_shape is not None:
         draw_polygon(best_shape)
         print(f'{shape_type} found: {best_shape}')
@@ -86,42 +87,36 @@ def fit_and_draw_shape(shape_type, fit_function, outliers, file, vertex_count):
         write_shape_details(file, shape_type[0], centroid, best_shape)
     else:
         print(f"No {shape_type} found")
+
     return outliers
 
 def main() -> None:
-    csv_file_path = r'C:\uni\Intr. Robótica\IRI_public_TP_classes-master\IRI_public_TP_classes-master\worlds\custom_maps\random_map_points.csv'
-    coordinates = read_coordinates_from_csv(csv_file_path)
+    coordinates = read_coordinates_from_csv("random_map_points.csv")
+    show_plot(coordinates)
 
-    find_possible_poses_from_csv(coordinates[:2564])
-    outliers = coordinates[2564:]
+    find_possible_poses_from_csv(coordinates[:2796])
+    outliers = coordinates[2796:]
 
     with open('shapes.txt', 'w') as file:
         pass
 
     with open('shapes.txt', 'w') as file:
-        while len(outliers) > 300:
-            print("Number of outliers:", len(outliers))
-            best_circle, inliers, outliers = fit_circle_ransac(outliers)
-            if best_circle is not None:
-                center = best_circle[:2]
-                radius = best_circle[2]
-                draw_circle(center, radius)
-                file.write(f'c = {center}, {radius}\n')
-                print("circle found:", center)
-            else:
-                print("No circle found")
+        print("Number of outliers:", len(outliers))
 
-            if len(outliers) > 300:
-                outliers = fit_and_draw_shape('triangle', fit_triangle_ransac, outliers, file, 3)
+        best_circle, inliers, outliers = fit_circle_ransac(outliers)
+        if best_circle is not None:
+            center = best_circle[:2]
+            radius = best_circle[2]
+            draw_circle(center, radius)
+            file.write(f'circle found: center={center}, radius={radius}\n')
+            print(f"circle found: {center}")
+        else:
+            print("No circle found")
 
-            if len(outliers) > 300:
-                outliers = fit_and_draw_shape('square', fit_square_ransac, outliers, file, 4)
-
-            if len(outliers) > 300:
-                outliers = fit_and_draw_shape('pentagon', fit_pentagon_ransac, outliers, file, 5)
-
-            if len(outliers) > 300:
-                outliers = fit_and_draw_shape('rhombus', fit_rhombus_ransac, outliers, file, 4)
+        outliers = fit_and_draw_shape('triangle', fit_triangle_ransac, outliers, file, 3)
+        outliers = fit_and_draw_shape('square', fit_square_ransac, outliers, file, 4)
+        outliers = fit_and_draw_shape('pentagon', fit_pentagon_ransac, outliers, file, 5)
+        outliers = fit_and_draw_shape('rhombus', fit_rhombus_ransac, outliers, file, 4)
 
     show_plot(outliers)
 

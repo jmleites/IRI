@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 
-def fit_circle_ransac(points, max_iter=100000, threshold=0.01, min_inliers=200):
+def fit_circle_ransac(points, max_iter=100000, threshold=0.01, min_inliers=1100, max_radius = 0.1):
     best_circle = None
     best_inliers = []
     best_outliers = copy.copy(points)
@@ -23,7 +23,7 @@ def fit_circle_ransac(points, max_iter=100000, threshold=0.01, min_inliers=200):
             if outliers is None:
                 return circle, best_inliers, best_outliers
 
-            if len(inliers) > min_inliers:
+            if len(inliers) > min_inliers and radius < max_radius:
                 if len(inliers) > len(best_inliers):
                     best_circle = circle
                     best_inliers = inliers

@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 
-def fit_triangle_ransac(points, max_iter=100000, threshold=0.01, min_inliers=200):
+def fit_triangle_ransac(points, max_iter=500000, threshold=0.01, min_inliers=600, max_side_length=0.15):
     best_triangle = None
     best_inliers = []
     best_outliers = copy.copy(points)
@@ -17,18 +17,25 @@ def fit_triangle_ransac(points, max_iter=100000, threshold=0.01, min_inliers=200
         triangle = sampled_points
         vertices = sampled_points[:6].reshape((3, 2))
 
-        distances = np.array([point_to_triangle_distance(point, vertices) for point in points])
-        outliers = points[distances > threshold]
-        inliers = points[distances <= threshold]
+        side_lengths = np.array([
+            np.linalg.norm(vertices[0] - vertices[1]),
+            np.linalg.norm(vertices[1] - vertices[2]),
+            np.linalg.norm(vertices[2] - vertices[0])
+        ])
 
-        if outliers is None:
-            return triangle, best_inliers, best_outliers
+        if all(side <= max_side_length for side in side_lengths):
+            distances = np.array([point_to_triangle_distance(point, vertices) for point in points])
+            outliers = points[distances > threshold]
+            inliers = points[distances <= threshold]
 
-        if len(inliers) >= min_inliers:
-            if len(inliers) > len(best_inliers):
-                best_triangle = triangle
-                best_inliers = inliers
-                best_outliers = outliers
+            if outliers is None:
+                return triangle, best_inliers, best_outliers
+
+            if len(inliers) >= min_inliers:
+                if len(inliers) > len(best_inliers):
+                    best_triangle = triangle
+                    best_inliers = inliers
+                    best_outliers = outliers
 
     return best_triangle, best_inliers, best_outliers
 
@@ -55,7 +62,7 @@ def check_angles(vertices):
         return False
 
     for angle in angles:
-        if not (58 <= angle <= 62):
+        if not (57 <= angle <= 63):
             return False
     return True
 
@@ -80,13 +87,21 @@ def point_to_triangle_distance(point, vertices):
     for i in range(3):
         p1 = vertices[i]
         p2 = vertices[(i + 1) % 3]
-        edge_distances.append(point_to_line_distance(point, p1, p2))
+        edge_distances.append(point_to_finite_line_distance(point, p1, p2))
 
     return np.min(edge_distances)
 
-def point_to_line_distance(point, p1, p2):
-    x_diff = p2[0] - p1[0]
-    y_diff = p2[1] - p1[1]
-    num = np.abs(y_diff * point[0] - x_diff * point[1] + p2[0] * p1[1] - p2[1] * p1[0])
-    denom = np.sqrt(y_diff ** 2 + x_diff ** 2)
-    return num / denom
+def point_to_finite_line_distance(point, p1, p2):
+    if np.all(p1 == p2):
+        return np.linalg.norm(point - p1)
+
+    line_vec = p2 - p1
+    pnt_vec = point - p1
+    line_len = np.linalg.norm(line_vec)
+    line_unitvec = line_vec / line_len
+    pnt_vec_scaled = pnt_vec / line_len
+    t = np.dot(line_unitvec, pnt_vec_scaled)
+    t = np.clip(t, 0, 1)
+    nearest = line_vec * t
+    dist = np.linalg.norm(nearest - pnt_vec)
+    return dist

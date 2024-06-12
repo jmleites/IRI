@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 
-def fit_square_ransac(points, max_iter=100000, threshold=0.01, min_inliers=200):
+def fit_square_ransac(points, max_iter=1000000, threshold=0.01, min_inliers=500):
     best_square = None
     best_inliers = []
     best_outliers = copy.copy(points)
@@ -32,7 +32,7 @@ def fit_square_ransac(points, max_iter=100000, threshold=0.01, min_inliers=200):
 
     return best_square, best_inliers, best_outliers
 
-def check_square(vertices, side_tolerance=0.05):
+def check_square(vertices, side_tolerance=0.03, max_side_length=0.15):
     def angle_between_vectors(v1, v2):
         dot_product = np.dot(v1, v2)
         norm_v1 = np.linalg.norm(v1)
@@ -60,16 +60,16 @@ def check_square(vertices, side_tolerance=0.05):
         return False
 
     for angle in angles:
-        if not (87 <= angle <= 93):
+        if not (86 <= angle <= 94):
             return False
 
-    side_lengths = [
+    side_lengths = np.array([
         distance(vertices[0], vertices[1]),
         distance(vertices[1], vertices[2]),
         distance(vertices[2], vertices[3]),
         distance(vertices[3], vertices[0])
-    ]
-    if not np.all(np.abs(side_lengths - side_lengths[0]) <= side_tolerance):
+    ])
+    if not np.all(np.abs(side_lengths - side_lengths[0]) <= side_tolerance) or not np.all(side_lengths <= max_side_length):
         return False
 
     return True
@@ -97,13 +97,23 @@ def point_to_square_distance(point, vertices):
     for i in range(4):
         p1 = vertices[i]
         p2 = vertices[(i + 1) % 4]
-        edge_distances.append(point_to_line_distance(point, p1, p2))
+        edge_distances.append(point_to_finite_line_distance(point, p1, p2))
 
     return np.min(edge_distances)
 
-def point_to_line_distance(point, p1, p2):
-    x_diff = p2[0] - p1[0]
-    y_diff = p2[1] - p1[1]
-    num = np.abs(y_diff * point[0] - x_diff * point[1] + p2[0] * p1[1] - p2[1] * p1[0])
-    denom = np.sqrt(y_diff ** 2 + x_diff ** 2)
-    return num / denom
+
+def point_to_finite_line_distance(point, p1, p2):
+    if np.all(p1 == p2):
+        return np.linalg.norm(point - p1)
+
+    line_vec = p2 - p1
+    pnt_vec = point - p1
+    line_len = np.linalg.norm(line_vec)
+    line_unitvec = line_vec / line_len
+    pnt_vec_scaled = pnt_vec / line_len
+    t = np.dot(line_unitvec, pnt_vec_scaled)
+    t = np.clip(t, 0, 1)
+    nearest = line_vec * t
+    dist = np.linalg.norm(nearest - pnt_vec)
+    return dist
+

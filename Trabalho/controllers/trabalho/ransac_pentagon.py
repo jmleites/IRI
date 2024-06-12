@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 
-def fit_pentagon_ransac(points, max_iter=100000, threshold=0.01, min_inliers=250):
+def fit_pentagon_ransac(points, max_iter=1100000, threshold=0.01, min_inliers=300):
     best_pentagon = None
     best_inliers = []
     best_outliers = copy.copy(points)
@@ -32,7 +32,7 @@ def fit_pentagon_ransac(points, max_iter=100000, threshold=0.01, min_inliers=250
 
     return best_pentagon, best_inliers, best_outliers
 
-def check_pentagon(vertices, angle_tolerance=3, side_tolerance=0.02):
+def check_pentagon(vertices, angle_tolerance=7, side_tolerance=0.3, max_side_length=0.15):
     def angle_between_vectors(v1, v2):
         dot_product = np.dot(v1, v2)
         norm_v1 = np.linalg.norm(v1)
@@ -53,9 +53,9 @@ def check_pentagon(vertices, angle_tolerance=3, side_tolerance=0.02):
     if not all(abs(angle - 108) <= angle_tolerance for angle in angles):
         return False
 
-    side_lengths = [distance(vertices[i], vertices[(i + 1) % 5]) for i in range(5)]
+    side_lengths = np.array([distance(vertices[i], vertices[(i + 1) % 5]) for i in range(5)])
 
-    if not np.all(np.abs(side_lengths - side_lengths[0]) <= side_tolerance):
+    if not np.all(np.abs(side_lengths - side_lengths[0]) <= side_tolerance) or not np.all(side_lengths <= max_side_length):
         return False
 
     return True
@@ -65,13 +65,21 @@ def point_to_pentagon_distance(point, vertices):
     for i in range(5):
         p1 = vertices[i]
         p2 = vertices[(i + 1) % 5]
-        edge_distances.append(point_to_line_distance(point, p1, p2))
+        edge_distances.append(point_to_finite_line_distance(point, p1, p2))
 
     return np.min(edge_distances)
 
-def point_to_line_distance(point, p1, p2):
-    x_diff = p2[0] - p1[0]
-    y_diff = p2[1] - p1[1]
-    num = np.abs(y_diff * point[0] - x_diff * point[1] + p2[0] * p1[1] - p2[1] * p1[0])
-    denom = np.sqrt(y_diff ** 2 + x_diff ** 2)
-    return num / denom
+def point_to_finite_line_distance(point, p1, p2):
+    if np.all(p1 == p2):
+        return np.linalg.norm(point - p1)
+
+    line_vec = p2 - p1
+    pnt_vec = point - p1
+    line_len = np.linalg.norm(line_vec)
+    line_unitvec = line_vec / line_len
+    pnt_vec_scaled = pnt_vec / line_len
+    t = np.dot(line_unitvec, pnt_vec_scaled)
+    t = np.clip(t, 0, 1)
+    nearest = line_vec * t
+    dist = np.linalg.norm(nearest - pnt_vec)
+    return dist
